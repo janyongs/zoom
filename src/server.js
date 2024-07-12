@@ -1,6 +1,7 @@
 import express from "express";
 import http from "http";
 import { Server } from "socket.io";
+import { instrument } from "@socket.io/admin-ui";
 
 //express는 http 프로토콜
 const app = express();
@@ -18,10 +19,61 @@ const handleListen = () => {
 //ws 는 웹소켓 프로토콜
 //이렇게하면 http서버, webSocket서버 둘다 돌릴수있다
 const httpServer = http.createServer(app);
-const wsServer = new Server(httpServer);
+const wsServer = new Server(httpServer, {
+  cors: {
+    origin: ["https://admin.socket.io"],
+    credentials: true,
+  },
+});
+
+instrument(wsServer, { auth: false });
+
+function publicRooms() {
+  const {
+    sockets: {
+      adapter: { sids, rooms },
+    },
+  } = wsServer;
+
+  const publicRooms = [];
+  rooms.forEach((_, key) => {
+    if (sids.get(key) === undefined) {
+      publicRooms.push(key);
+    }
+  });
+  return publicRooms;
+}
+
+function countRoom(roomName) {
+  return wsServer.sockets.adapter.rooms.get(roomName)?.size;
+}
 
 wsServer.on("connection", (socket) => {
-  console.log(socket);
+  socket["nickname"] = "익명";
+  socket.onAny((e) => {
+    console.log(`socket event:${e}`);
+  });
+  socket.on("enter_room", (roomName, done) => {
+    socket.join(roomName);
+    done();
+    socket.to(roomName).emit("welcome", socket.nickname, countRoom(roomName));
+    wsServer.sockets.emit("room_change", publicRooms());
+  });
+  socket.on("disconnecting", () => {
+    socket.rooms.forEach((room) =>
+      socket
+        .to(room)
+        .emit("bye", socket.nickname, countRoom(socket.roomName) - 1)
+    );
+  });
+
+  socket.on("new_message", (msg, room, done) => {
+    socket.to(room).emit("new_message", `${socket.nickname}: ${msg}`);
+    done();
+  });
+  socket.on("nickname", (nickname) => {
+    socket["nickname"] = nickname;
+  });
 });
 
 // const wss = new WebSocket.Server({ server });
