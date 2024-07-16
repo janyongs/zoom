@@ -12,6 +12,7 @@ let myStream;
 let muted = false;
 let cameraOff = false;
 let roomName;
+let myPeerConnection;
 
 // 유저 미디어 장비정보를 모두 가져올수있다.
 async function getCameras() {
@@ -105,15 +106,34 @@ function handleWelcomeSubmit(e) {
   input.value = "";
 }
 
-function startMedia() {
+async function startMedia() {
   welcome.hidden = true;
   call.hidden = false;
-  getMedia();
+  await getMedia();
+  makeConnection();
 }
 
 welcomeForm.addEventListener("submit", handleWelcomeSubmit);
 
 //socket code
-socket.on("welcome", () => {
-  console.log("someone joined");
+//Peer A
+socket.on("welcome", async () => {
+  const offer = await myPeerConnection.createOffer();
+  myPeerConnection.setLocalDescription(offer);
+  console.log("send the offer");
+  socket.emit("offer", offer, roomName);
 });
+
+//Peer B
+socket.on("offer", (offer) => {
+  console.log(offer);
+});
+
+//RTC Code
+function makeConnection() {
+  const myPeerConnection = new RTCPeerConnection();
+  //add stream
+  myStream
+    .getTracks()
+    .forEach((track) => myPeerConnection.addTrack(track, myStream));
+}
