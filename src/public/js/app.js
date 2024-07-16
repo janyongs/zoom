@@ -4,9 +4,14 @@ const myFace = document.getElementById("myFace");
 const muteBtn = document.getElementById("mute");
 const cameraBtn = document.getElementById("camera");
 const camerasSelect = document.getElementById("cameras");
+
+const call = document.getElementById("call");
+call.hidden = true;
+
 let myStream;
 let muted = false;
 let cameraOff = false;
+let roomName;
 
 // 유저 미디어 장비정보를 모두 가져올수있다.
 async function getCameras() {
@@ -83,8 +88,32 @@ function handleCameraClick() {
 async function handleCameraChange() {
   await getMedia(camerasSelect.value);
 }
-getMedia();
 
 muteBtn.addEventListener("click", handleMuteClick);
 cameraBtn.addEventListener("click", handleCameraClick);
 camerasSelect.addEventListener("input", handleCameraChange);
+
+// 처음 접속할때 room 선택해서 들어가기
+const welcome = document.getElementById("welcome");
+const welcomeForm = welcome.querySelector("form");
+
+function handleWelcomeSubmit(e) {
+  e.preventDefault();
+  const input = welcomeForm.querySelector("input");
+  socket.emit("join_room", input.value, startMedia);
+  roomName = input.value;
+  input.value = "";
+}
+
+function startMedia() {
+  welcome.hidden = true;
+  call.hidden = false;
+  getMedia();
+}
+
+welcomeForm.addEventListener("submit", handleWelcomeSubmit);
+
+//socket code
+socket.on("welcome", () => {
+  console.log("someone joined");
+});
